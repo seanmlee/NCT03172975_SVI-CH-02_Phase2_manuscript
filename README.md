@@ -1,6 +1,6 @@
 
 ## Overview
-- This repository includes code and deidentified data to reproduce our clinical trial (NCT03172975) manuscript titled "<em>Phase 2 Study to Assess the Efficacy of Na-GST-1/Alhydrogel Co-administered with Different Toll-Like Receptor Agonists in Hookworm-Naïve Adults using a Controlled Human Infection Model</em>" (the manuscript is currently in submission/review) 
+- This repository includes code and deidentified data to reproduce the analysis for our clinical trial (NCT03172975) manuscript titled "<em>Phase 2 Study to Assess the Efficacy of Na-GST-1/Alhydrogel Co-administered with Different Toll-Like Receptor Agonists in Hookworm-Naïve Adults using a Controlled Human Infection Model</em>" (the manuscript is currently in submission/review) 
 - We will provide the full citation, abstract, and visual abstract upon publication
 <br>  
 
