@@ -105,7 +105,7 @@ ex <- ex %>%
 # dv_long_mcmaster --------------------------------------------------------
 dv_long_mcmaster <- lb %>%
   
-  select(
+  dplyr::select(
     LBSEQ,
     USUBJID,   # unique subject id
     LBTEST,    # lab test or exam name
@@ -137,7 +137,7 @@ dv_long_mcmaster$VISIT <- as.numeric(dv_long_mcmaster$VISIT)
 # dv_long_eos -------------------------------------------------------------
 dv_long_eos <- lb %>%
   
-  select(
+  dplyr::select(
     LBSEQ,
     USUBJID,   # unique subject id
     LBTEST,    # lab test or exam name
