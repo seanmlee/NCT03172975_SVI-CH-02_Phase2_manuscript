@@ -66,7 +66,7 @@ grid <- expand.grid(
   
   dplyr::select(-AEPTCD)
 
-grid_any <- grid %>% select(-preferred_term) %>% distinct()
+grid_any <- grid %>% dplyr::select(-preferred_term) %>% distinct()
 
 
 # function ---------------------------------------------------------------------
@@ -84,7 +84,7 @@ build_dose_df <- function(seq_num, n_per_group) {
     
     dplyr::select(USUBJID, AESEV, EXDOSE, preferred_term) %>%
     
-    distinct() %>% select(-USUBJID) %>%
+    distinct() %>% dplyr::select(-USUBJID) %>%
     
     group_by(EXDOSE, AESEV, preferred_term) %>%
     
@@ -100,7 +100,7 @@ build_dose_df <- function(seq_num, n_per_group) {
     
     mutate(AESEV = factor(AESEV, levels = severity_lvls)) %>%
     
-    select(USUBJID, AESEV, EXDOSE) %>% distinct() %>% select(-USUBJID) %>%
+    dplyr::select(USUBJID, AESEV, EXDOSE) %>% distinct() %>% dplyr::select(-USUBJID) %>%
     
     group_by(EXDOSE, AESEV) %>% summarise(n = n(), .groups="drop")
   
@@ -181,7 +181,7 @@ make_fig <- function(df, title_txt){
     ) + 
     
     labs(
-      x = "Relative Proportion of Subjects", 
+      x = "Proportion of Subjects", 
       y = NULL, 
       title = title_txt
       ) +
