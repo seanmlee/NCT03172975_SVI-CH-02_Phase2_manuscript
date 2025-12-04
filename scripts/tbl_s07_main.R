@@ -168,45 +168,38 @@ make_continuous_block <- function(model, block_title, coef_label, digits = 2) {
 }
 
 # fit models -------------------------------------------------------------------
-dv_max <- dv_max %>%
-  mutate(dose = factor(dose, levels = c("placebo", "dose5", "dose100", "dose500")))
-dv_ae  <- dv_ae  %>%
-  mutate(dose = factor(dose, levels = c("placebo", "dose5", "dose100", "dose500")))
+dv_max <- dv_max %>% mutate(dose = factor(dose, levels = c("placebo", "dose5", "dose100", "dose500")))
+dv_ae  <- dv_ae  %>% mutate(dose = factor(dose, levels = c("placebo", "dose5", "dose100", "dose500")))
 
-mod_float_dose     <- glm(float ~ dose, family = binomial(), data = dv_max)
-
-mod_mcmaster_dose  <- brms::brm(
-  round(max_egg_count) ~ dose,
-  family  = "zero_inflated_negbinomial",
-  control = list(adapt_delta = 0.9),
-  iter    = 4000,
-  data    = dv_max
-)
-
-mod_eos_dose       <- glm(log(max_eos_count) ~ dose, data = dv_max)
-mod_ae             <- glm(ae ~ dose, family = poisson(), data = dv_ae)
-mod_igg_dose       <- glm(log(max_igg_count_140) ~ dose, data = dv_max)
-
-mod_float_igg_140    <- glm(float ~ scale(max_igg_count_140, scale = FALSE),
-                            family = binomial(), data = dv_max)
-mod_mcmaster_igg_140 <- glm(log(max_egg_count + 0.1) ~ scale(max_igg_count_140, scale = FALSE),
-                            data = dv_max)
-mod_float_igg_147    <- glm(float ~ scale(max_igg_count_147, scale = FALSE),
-                            family = binomial(), data = dv_max)
-mod_mcmaster_igg_147 <- glm(log(max_egg_count + 0.1) ~ scale(max_igg_count_147, scale = FALSE),
-                            data = dv_max)
+mod_float_dose        <- glm(float ~ dose, family = binomial(), data = dv_max)
+mod_mcmaster_dose     <- brms::brm( round(max_egg_count) ~ dose, family = "zero_inflated_negbinomial", control = list(adapt_delta = 0.9), iter = 4000, data = dv_max)
+mod_eos_dose          <- glm(log(max_eos_count) ~ dose, data = dv_max)
+mod_ae                <- glm(ae ~ dose, family = poisson(), data = dv_ae)
+mod_igg_dose          <- glm(log(max_igg_count_140) ~ dose, data = dv_max)
+mod_float_igg_140     <- glm(float ~ scale(max_igg_count_140, scale = FALSE), family = binomial(), data = dv_max)
+mod_mcmaster_igg_140  <- brms::brm(round(max_egg_count) ~ scale(max_igg_count_140, scale = FALSE), family = "zero_inflated_negbinomial", control = list(adapt_delta = 0.9), iter = 4000, data = dv_max)
+mod_float_igg_147     <- glm(float ~ scale(max_igg_count_147, scale = FALSE), family = binomial(), data = dv_max)
+mod_mcmaster_igg_147  <- brms::brm(round(max_egg_count) ~ scale(max_igg_count_147, scale = FALSE), family = "zero_inflated_negbinomial", control = list(adapt_delta = 0.9), iter = 4000, data = dv_max)
 
 # build combined table ---------------------------------------------------------
 blocks <- list(
   make_dose_block(mod_float_dose,    "Hypertonic Saline Flotation Egg Result – Study Group", dv_max),
-  make_dose_block(mod_mcmaster_dose, "McMaster Method Egg Result – Study Group",             dv_max),  # brms ZINB
+  make_dose_block(mod_mcmaster_dose, "McMaster Method Egg Result – Study Group",             dv_max),
   make_dose_block(mod_eos_dose,      "Eosinophil Count – Study Group",                       dv_max),
   make_dose_block(mod_ae,            "Number of Adverse Events – Study Group",               dv_ae),
   make_dose_block(mod_igg_dose,      "Anti–Na–GST-1 IgG Level – Study Group",                dv_max),
-  make_continuous_block(mod_float_igg_140,    "Hypertonic Saline Flotation Egg Result – Anti–Na–GST-1 IgG Level on Day 140", "Anti–Na–GST-1 IgG"),
-  make_continuous_block(mod_mcmaster_igg_140, "McMaster Method Egg Result – Anti–Na–GST-1 IgG Level on Day 140",             "Anti–Na–GST-1 IgG"),
-  make_continuous_block(mod_float_igg_147,    "Hypertonic Saline Flotation Egg Result – Anti–Na–GST-1 IgG Level on Day 147", "Anti–Na–GST-1 IgG"),
-  make_continuous_block(mod_mcmaster_igg_147, "McMaster Method Egg Result – Anti–Na–GST-1 IgG Level on Day 147",             "Anti–Na–GST-1 IgG")
+  make_continuous_block(mod_float_igg_140,
+                        "Hypertonic Saline Flotation Egg Result – Anti–Na–GST-1 IgG Level on Day 140",
+                        "Anti–Na–GST-1 IgG"),
+  make_continuous_block(mod_mcmaster_igg_140,
+                        "McMaster Method Egg Result – Anti–Na–GST-1 IgG Level on Day 140 (ZINB)",
+                        "Anti–Na–GST-1 IgG"),
+  make_continuous_block(mod_float_igg_147,
+                        "Hypertonic Saline Flotation Egg Result – Anti–Na–GST-1 IgG Level on Day 147",
+                        "Anti–Na–GST-1 IgG"),
+  make_continuous_block(mod_mcmaster_igg_147,
+                        "McMaster Method Egg Result – Anti–Na–GST-1 IgG Level on Day 147 (ZINB)",
+                        "Anti–Na–GST-1 IgG")
 )
 
 tbl <- bind_rows(blocks) %>%
