@@ -1,144 +1,256 @@
 
 
 # libraries --------------------------------------------------------------------
+library(haven)
 library(tidyverse)
-library(emmeans)
 library(openxlsx)
+library(emmeans)
 library(stringr)
-
-# fit model --------------------------------------------------------------------
-mod_ae <- MASS::glm.nb(
-  ae ~ dose, 
-  data = dv_ae
-)
+library(purrr)
 
 
-# posthoc pairwise comparisons -------------------------------------------------
-pw_raw <- pairs(emmeans(mod_ae, ~ dose), adjust = "tukey") %>%
-  summary(infer = TRUE)
+# load -------------------------------------------------------------------------
+ex <- read_xpt("data/ex.xpt") %>%
+  dplyr::select(USUBJID, EXSEQ, EXDOSE) %>%
+  mutate(EXSEQ = as.factor(EXSEQ))
 
-all_pw <- tibble(
-  contrast = pw_raw$contrast,
-  est      = pw_raw$estimate,
-  SE       = pw_raw$SE,
-  z        = pw_raw$z.ratio,
-  p        = pw_raw$p.value
-) %>%
-  separate(contrast, into = c("g1", "g2"), sep = " - ", remove = FALSE)
+seq4 <- ex %>%
+  distinct(USUBJID, .keep_all = TRUE) %>%
+  mutate(EXSEQ = case_when(EXSEQ == 1 ~ 4),
+         EXSEQ = as.factor(EXSEQ))
+
+ex <- bind_rows(ex, seq4)
+rm(seq4)
+
+igg_data <- read.csv("data/igg.csv", header = TRUE) %>%
+  mutate(
+    USUBJID = str_replace_all(USUBJID, c(
+      "SVI-CH-02-001-" = "",
+      " .*$"           = "",
+      "^0+"            = "",
+      "-"              = "",
+      "D0"             = ""
+    )),
+    USUBJID = paste0("SVI-CH-02-001-", USUBJID),
+    igg     = as.numeric(igg),
+    EXSEQ   = case_when(
+      visit <= 56  ~ "1",
+      visit <= 112 ~ "2",
+      visit <= 140 ~ "3",
+      TRUE         ~ "4"
+    )
+  ) %>%
+  rename(value = igg) %>%
+  filter(!is.na(value), !visit %in% c(238, 252))
+
+igg <- igg_data %>%
+  filter(type == "igg") %>%
+  inner_join(ex, by = "USUBJID")
 
 
 # helper -----------------------------------------------------------------------
-label_long <- function(x) {
+dose_label_long <- function(dose_code) {
   case_when(
-    x == "placebo"  ~ "Saline Placebo",
-    x == "dose5"    ~ "Na-GST-1/Alhydrogel/5µg AP 10-701",
-    x == "dose100"  ~ "100µg Na-GST-1/Alhydrogel",
-    x == "dose500"  ~ "Na-GST-1/Alhydrogel/500µg CpG 10104",
-    TRUE ~ x
+    dose_code == 0   ~ "Saline Placebo",
+    dose_code == 100 ~ "100µg Na-GST-1/Alhydrogel",
+    dose_code == 5   ~ "Na-GST-1/Alhydrogel/5µg AP 10-701",
+    dose_code == 500 ~ "Na-GST-1/Alhydrogel/500µg CpG 10104",
+    TRUE ~ as.character(dose_code)
   )
 }
 
 
-# format table -----------------------------------------------------------------
-row_100_vs_500 <- all_pw %>%
-  filter((g1 == "dose100" & g2 == "dose500") | (g1 == "dose500" & g2 == "dose100")) %>%
-  mutate(
-    Reference_code  = "dose500",
-    Comparison_code = "dose100",
-    est = ifelse(g1 == "dose500", -est, est),
-    z   = ifelse(g1 == "dose500", -z, z)
-  ) %>%
-  slice(1)
+# pairwise comparisons ---------------------------------------------------------
+visits_of_interest <- c(70, 126, 140, 147)
 
-row_5_vs_500 <- all_pw %>%
-  filter((g1 == "dose5" & g2 == "dose500") | (g1 == "dose500" & g2 == "dose5")) %>%
-  mutate(
-    Reference_code  = "dose500",
-    Comparison_code = "dose5",
-    est = ifelse(g1 == "dose500", -est, est),
-    z   = ifelse(g1 == "dose500", -z, z)
-  ) %>%
-  slice(1)
+pairwise_custom <- igg %>%
+  filter(visit %in% visits_of_interest, EXDOSE %in% c(0, 5, 100, 500)) %>%
+  mutate(log_value = log(value + 0.1)) %>%
+  group_by(visit) %>%
+  group_split() %>%
+  map_df(function(df) {
+    
+    visit_val <- unique(df$visit)
+    
+    # THIS is the model (one per visit)
+    fit <- aov(log_value ~ factor(EXDOSE), data = df)
+    
+    em <- emmeans(fit, ~ factor(EXDOSE))
+    cmp <- pairs(em, adjust = "tukey") %>% summary(infer = TRUE)
+    
+    tibble(
+      visit        = visit_val,
+      contrast     = cmp$contrast,
+      Estimate_raw = cmp$estimate,   # log-difference
+      SE           = cmp$SE,
+      t_raw        = cmp$t.ratio,
+      p            = cmp$p.value
+    )
+  })
 
-row_5_vs_100 <- all_pw %>%
-  filter((g1 == "dose5" & g2 == "dose100") | (g1 == "dose100" & g2 == "dose5")) %>%
-  mutate(
-    Reference_code  = "dose100",
-    Comparison_code = "dose5",
-    est = ifelse(g1 == "dose100", -est, est),
-    z   = ifelse(g1 == "dose100", -z, z)
-  ) %>%
-  slice(1)
 
-ae_pw_three <- bind_rows(row_100_vs_500, row_5_vs_500, row_5_vs_100) %>%
-  transmute(
-    Reference  = label_long(Reference_code),
-    Comparison = label_long(Comparison_code),
-    `β`  = formatC(est, digits = 3, format = "f"),
-    `SE` = formatC(SE,  digits = 2, format = "f"),
-    `z`  = formatC(z,   digits = 2, format = "f"),
-    p_raw = p,
-    `p`  = ifelse(p < 0.001, "<0.001", formatC(p, digits = 3, format = "f"))
+pairwise_proc <- pairwise_custom %>%
+  mutate(
+    nums = str_extract_all(contrast, "\\d+"),
+    G1   = as.numeric(map_chr(nums, 1)),
+    G2   = as.numeric(map_chr(nums, 2))
+  ) %>%
+  rowwise() %>%
+  mutate(
+    ref = if (G1 == 0 | G2 == 0) {
+      0
+    } else if (G1 == 500 | G2 == 500) {
+      500
+    } else {
+      NA_real_
+    },
+    comp = ifelse(G1 == ref, G2, G1),
+    
+    Estimate = ifelse(G1 == ref, -Estimate_raw, Estimate_raw),
+    t        = ifelse(G1 == ref, -t_raw,      t_raw)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    `Time Point` = paste0("Day ", visit),
+    `Time Point` = str_replace(`Time Point`, "Day 70",  "Day 70 (14 Days Post-Dose 2)"),
+    `Time Point` = str_replace(`Time Point`, "Day 126", "Day 126 (14 Days Post-Dose 3)"),
+    `Time Point` = str_replace(`Time Point`, "Day 140", "Day 140 (CHHI; 28 Days Post-Dose 3)"),
+    `Time Point` = str_replace(`Time Point`, "Day 147", "Day 147 (Follow-up)"),
+    Reference    = dose_label_long(ref),
+    Comparison   = dose_label_long(comp)
+  ) %>%
+  filter(!is.na(Reference), !is.na(Comparison),
+         !is.na(Estimate), !is.na(SE), !is.na(t), !is.na(p)) %>%
+  mutate(
+    `Time Point` = factor(
+      `Time Point`,
+      levels = c(
+        "Day 70 (14 Days Post-Dose 2)",
+        "Day 126 (14 Days Post-Dose 3)",
+        "Day 140 (CHHI; 28 Days Post-Dose 3)",
+        "Day 147 (Follow-up)"
+      )
+    )
+  ) %>%
+  arrange(
+    `Time Point`,
+    factor(Reference,
+           levels = c("Saline Placebo",
+                      "Na-GST-1/Alhydrogel/500µg CpG 10104")),
+    Comparison
   )
 
 
-# excel table ------------------------------------------------------------------
-out_path <- "out/table_s06.xlsx"
-dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
-
-wb <- createWorkbook()
-sh <- "AE Pairwise (3 rows)"
-addWorksheet(wb, sh)
-
-# row 1
-hdr1 <- c("Contrast", "", "Adverse Events", "", "", "")
-writeData(wb, sh, t(hdr1), startRow = 1, startCol = 1, colNames = FALSE)
-mergeCells(wb, sh, cols = 1:2, rows = 1)
-mergeCells(wb, sh, cols = 3:6, rows = 1)
-
-# row 2
-hdr2 <- c("Reference", "Comparison", "β", "SE", "z", "p")
-writeData(wb, sh, t(hdr2), startRow = 2, startCol = 1, colNames = FALSE)
-
-# body (explicitly use dplyr::select) ------------------------------------------
-writeData(
-  wb, sh,
-  ae_pw_three %>% dplyr::select(Reference, Comparison, `β`, `SE`, `z`, `p`),
-  startRow = 3, startCol = 1, colNames = FALSE
-)
+# unexponentiated table --------------------------------------------------------
+pairwise_log_tbl <- pairwise_proc %>%
+  mutate(
+    Estimate_f = formatC(Estimate, digits = 3, format = "f"),
+    SE_f       = formatC(SE,       digits = 2, format = "f"),
+    t_f        = formatC(t,        digits = 2, format = "f"),
+    p_f        = ifelse(p < 0.001, "<0.001", formatC(p, digits = 3, format = "f"))
+  ) %>%
+  dplyr::select(
+    `Time Point`, Reference, Comparison,
+    Estimate = Estimate_f, SE = SE_f, t = t_f, p = p_f
+  )
 
 
-# styles -----------------------------------------------------------------------
+# exponentiated table ----------------------------------------------------------
+pairwise_gmr_tbl <- pairwise_proc %>%
+  mutate(
+    GMR      = exp(Estimate),
+    GMR_LCL  = exp(Estimate - 1.96 * SE),
+    GMR_UCL  = exp(Estimate + 1.96 * SE),
+    GMR_f    = formatC(GMR,     digits = 2, format = "f"),
+    GMR_LCLf = formatC(GMR_LCL, digits = 2, format = "f"),
+    GMR_UCLf = formatC(GMR_UCL, digits = 2, format = "f"),
+    p_f      = ifelse(p < 0.001, "<0.001", formatC(p, digits = 3, format = "f"))
+  ) %>%
+  dplyr::select(
+    `Time Point`, Reference, Comparison,
+    `GMR` = GMR_f,
+    `LCL` = GMR_LCLf,
+    `UCL` = GMR_UCLf,
+    p = p_f
+  )
+
+
+# excel ------------------------------------------------------------------------
+out_path_pw <- "out/table_s10.xlsx"
+dir.create(dirname(out_path_pw), recursive = TRUE, showWarnings = FALSE)
+
+wb_pw <- createWorkbook()
+
+sh_pw1 <- "Pairwise"
+addWorksheet(wb_pw, sh_pw1)
+
+top_header_pw1 <- c("Time Point",
+                    "Post-hoc Pairwise Comparisons (Comparison vs Reference)", "", "", "", "", "")
+writeData(wb_pw, sh_pw1, t(top_header_pw1), startRow = 1, startCol = 1, colNames = FALSE)
+mergeCells(wb_pw, sh_pw1, cols = 2:7, rows = 1)
+
+col_header_pw1 <- c("", "Reference", "Comparison", "Estimate", "SE", "t", "p")
+writeData(wb_pw, sh_pw1, t(col_header_pw1), startRow = 2, startCol = 1, colNames = FALSE)
+
+writeData(wb_pw, sh_pw1, pairwise_log_tbl, startRow = 3, startCol = 1, colNames = FALSE)
+
+sh_pw2 <- "Pairwise_GMR"
+addWorksheet(wb_pw, sh_pw2)
+
+top_header_pw2 <- c("Time Point",
+                    "Geometric Mean Ratios (Comparison vs Reference)", "", "", "", "", "")
+writeData(wb_pw, sh_pw2, t(top_header_pw2), startRow = 1, startCol = 1, colNames = FALSE)
+mergeCells(wb_pw, sh_pw2, cols = 2:7, rows = 1)
+
+col_header_pw2 <- c("", "Reference", "Comparison", "GMR", "LCL", "UCL", "p")
+writeData(wb_pw, sh_pw2, t(col_header_pw2), startRow = 2, startCol = 1, colNames = FALSE)
+
+writeData(wb_pw, sh_pw2, pairwise_gmr_tbl, startRow = 3, startCol = 1, colNames = FALSE)
+
 hdrTop <- createStyle(fontSize = 11, textDecoration = "bold",
                       halign = "center", valign = "center",
                       border = "TopBottomLeftRight")
-hdr2s  <- createStyle(fontSize = 10, textDecoration = "bold",
+hdr2   <- createStyle(fontSize = 10, textDecoration = "bold",
                       halign = "center", valign = "center",
                       border = "TopBottomLeftRight", wrapText = TRUE)
 body   <- createStyle(fontSize = 10, halign = "center", valign = "center",
                       border = "TopBottomLeftRight", wrapText = TRUE)
-leftBody <- createStyle(fontSize = 10, halign = "left", valign = "center",
-                        border = "TopBottomLeftRight", wrapText = TRUE)
-boldP  <- createStyle(fontSize = 10, textDecoration = "bold",
-                      halign = "center", valign = "center",
-                      border = "TopBottomLeftRight")
 
-addStyle(wb, sh, hdrTop, rows = 1, cols = 1:6, gridExpand = TRUE)
-addStyle(wb, sh, hdr2s,  rows = 2, cols = 1:6, gridExpand = TRUE)
-addStyle(wb, sh, leftBody, rows = 3:5, cols = 1:2, gridExpand = TRUE)
-addStyle(wb, sh, body,     rows = 3:5, cols = 3:6, gridExpand = TRUE)
-
-sig_rows <- which(ae_pw_three$p_raw < 0.05)
-if (length(sig_rows)) {
-  addStyle(wb, sh, boldP, rows = 2 + sig_rows, cols = 6, gridExpand = TRUE, stack = TRUE)
+for (sh in c(sh_pw1, sh_pw2)) {
+  
+  nr <- if (sh == sh_pw1) nrow(pairwise_log_tbl) else nrow(pairwise_gmr_tbl)
+  
+  addStyle(wb_pw, sh, hdrTop, rows = 1, cols = 1:7, gridExpand = TRUE)
+  addStyle(wb_pw, sh, hdr2,   rows = 2, cols = 1:7, gridExpand = TRUE)
+  addStyle(wb_pw, sh, body,   rows = 3:(2 + nr), cols = 2:7, gridExpand = TRUE)
+  
+  # merge/center time points
+  tp <- if (sh == sh_pw1) as.character(pairwise_log_tbl$`Time Point`)
+  else as.character(pairwise_gmr_tbl$`Time Point`)
+  
+  run_starts <- c(1, which(tp != dplyr::lag(tp, default = tp[1])))
+  run_starts <- sort(unique(run_starts))
+  run_ends   <- c(run_starts[-1] - 1, length(tp))
+  
+  for (i in seq_along(run_starts)) {
+    r1 <- 2 + run_starts[i]
+    r2 <- 2 + run_ends[i]
+    mergeCells(wb_pw, sh, cols = 1, rows = r1:r2)
+    addStyle(wb_pw, sh, body, rows = r1:r2, cols = 1, gridExpand = TRUE)
+  }
+  
+  setColWidths(wb_pw, sh, cols = 1, widths = 36)
+  setColWidths(wb_pw, sh, cols = 2, widths = 28)
+  setColWidths(wb_pw, sh, cols = 3, widths = 28)
+  setColWidths(wb_pw, sh, cols = 4, widths = 14)
+  setColWidths(wb_pw, sh, cols = 5, widths = 10)
+  setColWidths(wb_pw, sh, cols = 6, widths = 10)
+  setColWidths(wb_pw, sh, cols = 7, widths = 12)
+  
+  setRowHeights(wb_pw, sh, rows = 1, heights = 24)
+  setRowHeights(wb_pw, sh, rows = 2, heights = 38)
 }
 
 
-# col width --------------------------------------------------------------------
-setColWidths(wb, sh, cols = 1, widths = 42)
-setColWidths(wb, sh, cols = 2, widths = 42)
-setColWidths(wb, sh, cols = 3:6, widths = 10)
-
-
 # write ------------------------------------------------------------------------
-saveWorkbook(wb, out_path, overwrite = TRUE)
+saveWorkbook(wb_pw, out_path_pw, overwrite = TRUE)
