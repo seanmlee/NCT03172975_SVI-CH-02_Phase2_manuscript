@@ -99,19 +99,19 @@ dv_max %>%
     y = "Maximum eggs per gram"
     ) +
   
-  geom_signif(
-    
-    y_position = 297, 
-    xmin = 1,
-    xmax = 4,
-    annotation = "*", 
-    tip_length = c(0.35, 0.99),
-    color = "black",
-    size = 0.25,
-    textsize = 10,
-    vjust = 0.55
-    
-  ) +
+#  geom_signif(
+#    
+#    y_position = 297, 
+#    xmin = 1,
+#    xmax = 4,
+#    annotation = "*", 
+#    tip_length = c(0.35, 0.99),
+#    color = "black",
+#    size = 0.25,
+#    textsize = 10,
+#    vjust = 0.55
+#    
+#  ) +
 
   stat_summary(
     fun  = median,
