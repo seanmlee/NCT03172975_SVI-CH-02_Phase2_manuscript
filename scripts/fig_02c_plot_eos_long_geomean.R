@@ -73,8 +73,9 @@ dv_long_eos_average %>%
   
   scale_y_continuous(
     trans = scales::log1p_trans(),
-    breaks = c(0, 1, 10),
-    limits = c(0, 10)
+    breaks = c(1, 10),
+    limits = c(0, 10),
+    labels = c("1", "10")
   ) +
   
   labs(
@@ -112,5 +113,5 @@ dv_long_eos_average %>%
     color = guide_legend(ncol = 1)
   )
 
-print(p_b)
+print(p_c)
 

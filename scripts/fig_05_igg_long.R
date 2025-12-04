@@ -92,8 +92,9 @@ p <- igg_long_average %>%
   
   scale_y_continuous(
     trans = log1p_trans(),
-    breaks = c(0, 1, 10, 100),
-    limits = c(0, 190)
+    breaks = c(1, 10, 100),
+    limits = c(0, 190),
+    labels = c("1", "10", "100")
   ) +
   
   scale_color_manual(values = dose_cols, guide = "none") +

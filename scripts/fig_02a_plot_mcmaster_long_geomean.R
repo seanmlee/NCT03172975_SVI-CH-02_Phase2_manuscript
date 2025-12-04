@@ -73,8 +73,9 @@ dv_long_mcmaster_average %>%
   
   scale_y_continuous(
     trans = scales::log1p_trans(),
-    breaks = c(0, 1, 10, 100, 1000),
-    limits = c(0, 1000)
+    breaks = c(1, 10, 100, 1000),
+    limits = c(0, 1000),
+    labels = c("1", "10", "100", "1000")
   ) +
   
   labs(
