@@ -172,7 +172,7 @@ dv_max <- dv_max %>% mutate(dose = factor(dose, levels = c("placebo", "dose5", "
 dv_ae  <- dv_ae  %>% mutate(dose = factor(dose, levels = c("placebo", "dose5", "dose100", "dose500")))
 
 mod_float_dose        <- glm(float ~ dose, family = binomial(), data = dv_max)
-mod_mcmaster_dose     <- brms::brm( round(max_egg_count) ~ dose, family = "zero_inflated_negbinomial", control = list(adapt_delta = 0.9), iter = 4000, data = dv_max)
+mod_mcmaster_dose     <- brms::brm(round(max_egg_count) ~ dose, family = "zero_inflated_negbinomial", control = list(adapt_delta = 0.9), iter = 4000, data = dv_max)
 mod_eos_dose          <- glm(log(max_eos_count) ~ dose, data = dv_max)
 mod_ae                <- MASS::glm.nb(ae ~ dose, data = dv_ae)
 mod_igg_dose          <- glm(log(max_igg_count_140) ~ dose, data = dv_max)
