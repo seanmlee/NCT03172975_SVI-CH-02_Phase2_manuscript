@@ -6,16 +6,16 @@ library(emmeans)
 library(openxlsx)
 library(stringr)
 
-
 # fit model --------------------------------------------------------------------
-mod_ae <- glm(
-  ae ~ dose,
-  data = dv_ae,
-  family = poisson()
+mod_ae <- MASS::glm.nb(
+  ae ~ dose, 
+  data = dv_ae
 )
 
+
 # posthoc pairwise comparisons -------------------------------------------------
-pw_raw <- pairs(emmeans(mod_ae, ~ dose), adjust = "tukey") %>% summary(infer = TRUE)
+pw_raw <- pairs(emmeans(mod_ae, ~ dose), adjust = "tukey") %>%
+  summary(infer = TRUE)
 
 all_pw <- tibble(
   contrast = pw_raw$contrast,
@@ -37,6 +37,7 @@ label_long <- function(x) {
     TRUE ~ x
   )
 }
+
 
 # format table -----------------------------------------------------------------
 row_100_vs_500 <- all_pw %>%
@@ -99,11 +100,15 @@ mergeCells(wb, sh, cols = 3:6, rows = 1)
 hdr2 <- c("Reference", "Comparison", "β", "SE", "z", "p")
 writeData(wb, sh, t(hdr2), startRow = 2, startCol = 1, colNames = FALSE)
 
-# body
-writeData(wb, sh, ae_pw_three %>% select(Reference, Comparison, `β`, `SE`, `z`, `p`),
-          startRow = 3, startCol = 1, colNames = FALSE)
+# body (explicitly use dplyr::select) ------------------------------------------
+writeData(
+  wb, sh,
+  ae_pw_three %>% dplyr::select(Reference, Comparison, `β`, `SE`, `z`, `p`),
+  startRow = 3, startCol = 1, colNames = FALSE
+)
 
-# styles
+
+# styles -----------------------------------------------------------------------
 hdrTop <- createStyle(fontSize = 11, textDecoration = "bold",
                       halign = "center", valign = "center",
                       border = "TopBottomLeftRight")
@@ -128,7 +133,8 @@ if (length(sig_rows)) {
   addStyle(wb, sh, boldP, rows = 2 + sig_rows, cols = 6, gridExpand = TRUE, stack = TRUE)
 }
 
-# col width
+
+# col width --------------------------------------------------------------------
 setColWidths(wb, sh, cols = 1, widths = 42)
 setColWidths(wb, sh, cols = 2, widths = 42)
 setColWidths(wb, sh, cols = 3:6, widths = 10)
@@ -136,4 +142,3 @@ setColWidths(wb, sh, cols = 3:6, widths = 10)
 
 # write ------------------------------------------------------------------------
 saveWorkbook(wb, out_path, overwrite = TRUE)
-
