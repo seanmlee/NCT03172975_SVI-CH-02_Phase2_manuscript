@@ -12,7 +12,7 @@ library(purrr)
 # load -------------------------------------------------------------------------
 ex <- read_xpt("data/ex.xpt") %>%
   
-  select(USUBJID, EXSEQ, EXDOSE) %>%
+  dplyr::select(USUBJID, EXSEQ, EXDOSE) %>%
   
   mutate(EXSEQ = as.factor(EXSEQ))
 
