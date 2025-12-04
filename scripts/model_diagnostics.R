@@ -1,26 +1,11 @@
-## ---------------------------------------------------------------
-## Basic model diagnostics (no extra packages beyond brms)
-## ---------------------------------------------------------------
-## Assumes the following models already exist in the workspace:
-##   mod_float_dose
-##   mod_mcmaster_dose     # brms ZINB
-##   mod_eos_dose          # Gaussian on log scale
-##   mod_ae                # Poisson
-##   mod_igg_dose          # Gaussian on log scale
-##   mod_float_igg_140     # Binomial
-##   mod_mcmaster_igg_140  # brms ZINB (IgG Day 140)
-##   mod_float_igg_147     # Binomial
-##   mod_mcmaster_igg_147  # brms ZINB (IgG Day 147)
-## ---------------------------------------------------------------
 
-## --------- helpers -------------------------------------------------
 
 check_gaussian_glm <- function(model, name = deparse(substitute(model))) {
   cat("\n==================================================\n")
   cat("Diagnostics for", name, "(Gaussian GLM on transformed outcome)\n")
   cat("==================================================\n")
   
-  r  <- residuals(model)          # raw residuals
+  r  <- residuals(model)
   fv <- fitted(model)
   
   ## Normality: Shapiro–Wilk
@@ -117,7 +102,6 @@ check_brms_zinb_basic <- function(model, name = deparse(substitute(model))) {
     cat("\nRhat range (fixed effects):", paste(rhat_range, collapse = " – "), "\n")
   }
   
-  ## Optional simple posterior predictive check:
   if (requireNamespace("brms", quietly = TRUE)) {
     cat("\nCalling brms::pp_check(model) for a basic posterior predictive plot...\n")
     brms::pp_check(model)
@@ -126,57 +110,56 @@ check_brms_zinb_basic <- function(model, name = deparse(substitute(model))) {
   invisible(sm)
 }
 
-## --------- run diagnostics for each model --------------------------
 
-## 1) Binary: float ~ dose
+# 1) Binary: float ~ dose
 diag_float_dose <- check_glm_binomial(
   mod_float_dose,
   "Hypertonic Saline Flotation Egg Result ~ dose"
 )
 
-## 2) ZINB (Bayesian): McMaster eggs ~ dose
+# 2) ZINB (Bayesian): McMaster eggs ~ dose
 diag_mcmaster_dose <- check_brms_zinb_basic(
   mod_mcmaster_dose,
   "McMaster Method Egg Count ~ dose (ZINB, brms)"
 )
 
-## 3) Gaussian (log-scale): log eosinophils ~ dose
+# 3) Gaussian (log-scale): log eosinophils ~ dose
 diag_eos_dose <- check_gaussian_glm(
   mod_eos_dose,
   "Eosinophil Count (log) ~ dose"
 )
 
-## 4) Poisson: AE count ~ dose
+# 4) Negbin: AE count ~ dose
 diag_ae <- check_glm_poisson(
   mod_ae,
   "Number of Adverse Events ~ dose (Poisson)"
 )
 
-## 5) Gaussian (log-scale): log IgG ~ dose
+# 5) Gaussian (log-scale): log IgG ~ dose
 diag_igg_dose <- check_gaussian_glm(
   mod_igg_dose,
   "Anti–Na–GST-1 IgG (log) ~ dose"
 )
 
-## 6) Float ~ continuous IgG (Day 140) – Binomial GLM
+# 6) Float ~ continuous IgG (Day 140) – Binomial GLM
 diag_float_igg_140 <- check_glm_binomial(
   mod_float_igg_140,
   "Float result ~ Anti–Na–GST-1 IgG Day 140"
 )
 
-## 7) McMaster eggs ~ IgG (Day 140) – ZINB, brms
+# 7) McMaster eggs ~ IgG (Day 140) – ZINB, brms
 diag_mcmaster_igg_140 <- check_brms_zinb_basic(
   mod_mcmaster_igg_140,
   "McMaster egg count ~ Anti–Na–GST-1 IgG Day 140 (ZINB, brms)"
 )
 
-## 8) Float ~ continuous IgG (Day 147) – Binomial GLM
+# 8) Float ~ continuous IgG (Day 147) – Binomial GLM
 diag_float_igg_147 <- check_glm_binomial(
   mod_float_igg_147,
   "Float result ~ Anti–Na–GST-1 IgG Day 147"
 )
 
-## 9) McMaster eggs ~ IgG (Day 147) – ZINB, brms
+# 9) McMaster eggs ~ IgG (Day 147) – ZINB, brms
 diag_mcmaster_igg_147 <- check_brms_zinb_basic(
   mod_mcmaster_igg_147,
   "McMaster egg count ~ Anti–Na–GST-1 IgG Day 147 (ZINB, brms)"
