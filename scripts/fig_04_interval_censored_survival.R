@@ -1,5 +1,3 @@
-
-
 # libraries --------------------------------------------------------------------
 library(tidyverse)
 library(haven)
@@ -9,7 +7,6 @@ library(ggfortify)
 library(kableExtra)
 library(patchwork)
 library(grid)
-
 
 # read -------------------------------------------------------------------------
 lb <- read_xpt(
@@ -36,7 +33,6 @@ ds <- read_xpt(
   .name_repair = "unique"
 )
 
-
 # exclude ----------------------------------------------------------------------
 lb <- lb %>%
   filter(
@@ -44,7 +40,6 @@ lb <- lb %>%
     USUBJID != "SVI-CH-02-001-8012",
     USUBJID != "SVI-CH-02-001-8015"
   )
-
 
 # LIPLAN/PROCCUR == "Y" --------------------------------------------------------
 pr <- read_xpt(
@@ -64,7 +59,6 @@ pr <- read_xpt(
 lb <- inner_join(lb, pr, by = "USUBJID")
 rm(pr)
 
-
 # DSTERM == "COMPLETED" --------------------------------------------------------
 ds <- ds %>%
   dplyr::select(
@@ -75,7 +69,6 @@ ds <- ds %>%
 
 lb <- inner_join(lb, ds, by = "USUBJID")
 rm(ds)
-
 
 # subset vaccination data ------------------------------------------------------
 vacc <- ex %>%
@@ -108,7 +101,6 @@ vacc$dose <- factor(
 
 rm(ex)
 
-
 # FLOAT (interval-censored) ####################################################
 float_long <- lb %>%
   dplyr::select(
@@ -131,7 +123,6 @@ float_long <- lb %>%
   ) %>%
   filter(time_until_result >= 0)
 
-
 # build interval bounds per subject (float)
 float_ic <- float_long %>%
   arrange(USUBJID, time_until_result) %>%
@@ -150,7 +141,7 @@ float_ic <- float_long %>%
         any(LBORRES == "Negative" & time_until_result < first_pos),
         max(time_until_result[LBORRES == "Negative" &
                                 time_until_result < first_pos]),
-        0  # if first visit already positive, lower bound is challenge day
+        0
       ),
       last_time
     ),
@@ -167,31 +158,32 @@ float_ic <- float_long %>%
 float_ic <- inner_join(float_ic, vacc, by = "USUBJID") %>%
   filter(!is.na(timeL), !is.na(timeR), !is.na(dose))
 
-
 # Turnbull estimator by dose (float)
 km_float_ic <- survfit(
   Surv(timeL, timeR, type = "interval2") ~ dose,
   data = float_ic
 )
 
-
-# plot float -------------------------------------------------------------------
+# plot float (WITH RISK TABLE) -------------------------------------------------
 km_float_plot <- ggsurvplot(
   km_float_ic,
-  data         = float_ic,
-  pval         = FALSE,   # standard log-rank not valid for interval-censored
-  conf.int     = FALSE,
-  risk.table   = FALSE,
-  size         = 0.5,
-  censor.size  = 3,
-  censor.shape = "o",
-  legend       = "right",
-  legend.labs  = levels(float_ic$dose),
-  title        = "a)",
-  xlab         = "Days Post-CHHI",
-  xlim         = c(0, 220),
-  break.x.by   = 30,
-  ylab         = "Probability of Negative Test Result",
+  data              = float_ic,
+  pval              = FALSE,
+  conf.int          = FALSE,
+  risk.table        = TRUE,
+  risk.table.col    = "strata",
+  risk.table.title  = "Number at risk",
+  risk.table.height = 0.25,
+  size              = 0.5,
+  censor.size       = 3,
+  censor.shape      = "o",
+  legend            = "right",
+  legend.labs       = levels(float_ic$dose),
+  title             = "a)",
+  xlab              = "Days Post-CHHI",
+  xlim              = c(0, 220),
+  break.x.by        = 30,
+  ylab              = "Probability of Negative Test Result",
   ggtheme =
     theme_bw() +
     theme(
@@ -202,10 +194,8 @@ km_float_plot <- ggsurvplot(
     )
 )
 
-
 # MCMASTER (interval-censored, with right-censored fallback) ###################
 
-# Build interval-censored data for McMaster
 mcmaster_long <- lb %>%
   dplyr::select(
     LBSEQ,
@@ -227,7 +217,6 @@ mcmaster_long <- lb %>%
   ) %>%
   filter(time_until_result >= 0) %>%
   mutate(
-    # treat missing counts as 0 so they contribute as Negative, not NA
     LBSTRESN = ifelse(is.na(LBSTRESN), 0, LBSTRESN),
     POSNEG   = ifelse(LBSTRESN > 0, "Positive", "Negative")
   )
@@ -269,7 +258,6 @@ mcmaster_ic <- inner_join(mcmaster_ic, vacc, by = "USUBJID") %>%
 cat("nrow(mcmaster_ic) =", nrow(mcmaster_ic), "\n")
 
 if (nrow(mcmaster_ic) > 0) {
-  # Interval-censored Turnbull (preferred)
   km_mcmaster_ic <- survfit(
     Surv(timeL, timeR, type = "interval2") ~ dose,
     data = mcmaster_ic
@@ -277,20 +265,23 @@ if (nrow(mcmaster_ic) > 0) {
   
   km_mcmaster_plot <- ggsurvplot(
     km_mcmaster_ic,
-    data         = mcmaster_ic,
-    pval         = FALSE,
-    conf.int     = FALSE,
-    risk.table   = FALSE,
-    size         = 0.5,
-    censor.size  = 3,
-    censor.shape = "o",
-    legend       = "right",
-    legend.labs  = levels(mcmaster_ic$dose),
-    title        = "b)",
-    xlab         = "Days Post-CHHI",
-    xlim         = c(0, 220),
-    break.x.by   = 30,
-    ylab         = "Probability of Negative Test Result",
+    data              = mcmaster_ic,
+    pval              = FALSE,
+    conf.int          = FALSE,
+    risk.table        = TRUE,
+    risk.table.col    = "strata",
+    risk.table.title  = "Number at risk",
+    risk.table.height = 0.25,
+    size              = 0.5,
+    censor.size       = 3,
+    censor.shape      = "o",
+    legend            = "right",
+    legend.labs       = levels(mcmaster_ic$dose),
+    title             = "b)",
+    xlab              = "Days Post-CHHI",
+    xlim              = c(0, 220),
+    break.x.by        = 30,
+    ylab              = "Probability of Negative Test Result",
     ggtheme =
       theme_bw() +
       theme(
@@ -304,26 +295,22 @@ if (nrow(mcmaster_ic) > 0) {
 } else {
   message("No eligible McMaster interval-censored observations; using original right-censored KM.")
   
-  # ---- Right-censored McMaster as in original script ----
   mcmaster_rc <- lb %>%
     dplyr::select(
       LBSEQ,
-      USUBJID,   # unique subject id
-      PRSTDTC,   # start date/time of procedure
-      LBDTC,     # date/time of specimen collection
-      LBTEST,    # lab test or exam name
-      LBSTAT,    # completion status
-      LBORRES,   # flotation result
-      LBSTRESN   # numerical result/finding in standard units
+      USUBJID,
+      PRSTDTC,
+      LBDTC,
+      LBTEST,
+      LBSTAT,
+      LBORRES,
+      LBSTRESN
     ) %>%
     filter(
       LBTEST == "Stool Examination",
       LBSTAT != "NOT DONE"
     ) %>%
-    replace(
-      is.na(.),
-      0
-    ) %>%
+    replace(is.na(.), 0) %>%
     mutate(
       PRSTDTC           = as.Date(sub("T.*", "", PRSTDTC)),
       LBDTC             = as.Date(LBDTC),
@@ -331,11 +318,7 @@ if (nrow(mcmaster_ic) > 0) {
     ) %>%
     filter(time_until_result >= 0) %>%
     mutate(
-      LBSTRESN = ifelse(
-        LBSTRESN > 0,
-        "Positive",
-        "Negative"
-      )
+      LBSTRESN = ifelse(LBSTRESN > 0, "Positive", "Negative")
     )
   
   mcmaster_rc <- mcmaster_rc %>%
@@ -360,20 +343,23 @@ if (nrow(mcmaster_ic) > 0) {
   
   km_mcmaster_plot <- ggsurvplot(
     km_mcmaster,
-    data         = mcmaster_rc,
-    pval         = FALSE,   # keep consistent with float for this revision
-    conf.int     = FALSE,
-    risk.table   = FALSE,
-    size         = 0.5,
-    censor.size  = 3,
-    censor.shape = "o",
-    legend       = "right",
-    legend.labs  = levels(mcmaster_rc$dose),
-    title        = "b)",
-    xlab         = "Days Post-CHHI",
-    xlim         = c(0, 220),
-    break.x.by   = 30,
-    ylab         = "Probability of Negative Test Result",
+    data              = mcmaster_rc,
+    pval              = FALSE,
+    conf.int          = FALSE,
+    risk.table        = TRUE,
+    risk.table.col    = "strata",
+    risk.table.title  = "Number at risk",
+    risk.table.height = 0.25,
+    size              = 0.5,
+    censor.size       = 3,
+    censor.shape      = "o",
+    legend            = "right",
+    legend.labs       = levels(mcmaster_rc$dose),
+    title             = "b)",
+    xlab              = "Days Post-CHHI",
+    xlim              = c(0, 220),
+    break.x.by        = 30,
+    ylab              = "Probability of Negative Test Result",
     ggtheme =
       theme_bw() +
       theme(
@@ -400,45 +386,66 @@ dose_lab_map <- list(
   dose500 = expression(paste(italic('Na'), '-GST-1/Alhydrogel/500', mu, 'g CpG 10104'))
 )
 
+# strata as produced by survfit/ggsurvplot (e.g., "dose=placebo")
 strata_levels <- levels(factor(km_float_plot$plot$data$strata))
 dose_keys     <- sub("^.*=", "", strata_levels)
 
 values_for_strata <- setNames(dose_cols[dose_keys], strata_levels)
 labels_for_strata <- do.call(c, unname(dose_lab_map[dose_keys]))
 
-p1 <- km_float_plot$plot +
+# FLOAT: plot + risk table (no strata axis labels, legend uses original labels)
+p1_plot <- km_float_plot$plot +
   scale_color_manual(
     values = values_for_strata,
     breaks = strata_levels,
     labels = labels_for_strata,
     name   = NULL
   ) +
-  guides(
-    linetype = "none",
-    shape    = "none"
-  ) +
+  guides(linetype = "none", shape = "none") +
   theme(legend.position = "bottom")
 
-p2 <- km_mcmaster_plot$plot +
+p1_tbl <- km_float_plot$table +
+  scale_color_manual(values = values_for_strata, breaks = strata_levels) +
+  scale_x_continuous(breaks = seq(0, 210, 30), limits = c(0, 220)) +
+  labs(y = NULL) +
+  guides(color = "none") +
+  theme(
+    legend.position = "none",
+    axis.title.y    = element_blank(),
+    axis.text.y     = element_blank(),
+    axis.ticks.y    = element_blank()
+  )
+
+p1 <- p1_plot / p1_tbl + plot_layout(heights = c(3, 1))
+
+# MCMASTER: plot + risk table (no strata axis labels, no legend here)
+p2_plot <- km_mcmaster_plot$plot +
   scale_color_manual(
     values = values_for_strata,
     breaks = strata_levels,
     labels = labels_for_strata,
     name   = NULL
   ) +
-  guides(
-    linetype = "none",
-    shape    = "none"
-  ) +
+  guides(linetype = "none", shape = "none") +
   theme(legend.position = "none")
 
-panel <- (p1 | p2) / patchwork::guide_area() +
-  plot_layout(
-    guides  = "collect",
-    widths  = c(1, 1),
-    heights = c(1, 0.18)
-  ) &
-  guides(colour = guide_legend(ncol = 1, byrow = TRUE)) &
+p2_tbl <- km_mcmaster_plot$table +
+  scale_color_manual(values = values_for_strata, breaks = strata_levels) +
+  scale_x_continuous(breaks = seq(0, 210, 30), limits = c(0, 220)) +
+  labs(y = NULL) +
+  guides(color = "none") +
+  theme(
+    legend.position = "none",
+    axis.title.y    = element_blank(),
+    axis.text.y     = element_blank(),
+    axis.ticks.y    = element_blank()
+  )
+
+p2 <- p2_plot / p2_tbl + plot_layout(heights = c(3, 1))
+
+# Final combined panel with shared legend -------------------------------------
+panel <- (p1 | p2) +
+  plot_layout(guides = "collect") &
   theme(
     legend.position   = "bottom",
     legend.direction  = "vertical",
@@ -452,9 +459,9 @@ panel
 
 # write ------------------------------------------------------------------------
 ggsave(
-  "out/fig4.tiff",
+  "out/fig4.pdf",
   panel,
   dpi    = 300,
   width  = 9,
-  height = 4.5
+  height = 6
 )
