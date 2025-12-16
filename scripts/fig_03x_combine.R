@@ -43,7 +43,7 @@ final_plot
 
 # write ------------------------------------------------------------------------
 ggsave(
-  "out/fig3.tiff",
+  "out/fig3.pdf",
   dpi = 300,
   width = 18,
   height = 10

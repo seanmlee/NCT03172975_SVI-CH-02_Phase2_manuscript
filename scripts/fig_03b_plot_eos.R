@@ -127,3 +127,26 @@ dv_max %>%
 
 print(plot_eos)
 
+
+
+
+# iqr
+iqr_by_dose <- dv_max %>%
+  mutate(
+    float = case_when(
+      float == 0 ~ "Negative",
+      float == 1 ~ "Positive",
+      TRUE ~ as.character(float)
+    )
+  ) %>%
+  group_by(dose) %>%
+  summarise(
+    n      = sum(!is.na(max_eos_count)),
+    q1     = as.numeric(quantile(max_eos_count, 0.25, na.rm = TRUE, type = 2)),
+    median = as.numeric(median(max_eos_count, na.rm = TRUE)),
+    q3     = as.numeric(quantile(max_eos_count, 0.75, na.rm = TRUE, type = 2)),
+    iqr    = q3 - q1,
+    .groups = "drop"
+  )
+
+iqr_by_dose
