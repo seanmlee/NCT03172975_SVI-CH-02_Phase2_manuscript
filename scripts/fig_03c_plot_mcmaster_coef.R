@@ -28,28 +28,23 @@ prm_rr <- parameters::model_parameters(
 
 # tidy for plotting ------------------------------------------------------------
 df_plot <- prm_rr %>%
-  
   filter(!Parameter %in% c("(Intercept)", "Intercept", "b_Intercept")) %>%
-  
   mutate(
     Group = recode(
       Parameter,
       "b_dosedose500" = "Na-GST-1/Alhydrogel/500µg CpG 10104",
       "b_dosedose100" = "100µg Na-GST-1/Alhydrogel",
       "b_dosedose5"   = "Na-GST-1/Alhydrogel/5µg AP 10-701"
-      )
-    ) %>%
-  
+    )
+  ) %>%
   mutate(Group = factor(
     Group,
     levels = c(
       "Na-GST-1/Alhydrogel/500µg CpG 10104",
       "100µg Na-GST-1/Alhydrogel",
       "Na-GST-1/Alhydrogel/5µg AP 10-701"
-      )
     )
-  ) %>%
-  
+  )) %>%
   transmute(
     Group,
     rr      = Median,
@@ -57,13 +52,11 @@ df_plot <- prm_rr %>%
     rr_high = CI_high
   )
 
-
 dose_cols <- c(
   "Na-GST-1/Alhydrogel/500µg CpG 10104" = "#C77CFF",  # purple
   "100µg Na-GST-1/Alhydrogel"           = "#00B8E7",  # blue
   "Na-GST-1/Alhydrogel/5µg AP 10-701"   = "#7CAE00"   # green
 )
-
 
 y_labs <- c(
   "Na-GST-1/Alhydrogel/500µg CpG 10104" =
@@ -74,7 +67,6 @@ y_labs <- c(
     expression(paste(italic('Na'), '-GST-1/Alhydrogel/5', mu, 'g AP 10-701'))
 )
 
-
 eps <- 1e-3
 
 df_plot <- df_plot %>%
@@ -84,40 +76,38 @@ df_plot <- df_plot %>%
     rr_high_plot = pmin(rr_high, 2)
   )
 
+
+# label for CpG row you want to OMIT error bar for -----------------------------
+cpg_label <- "Na-GST-1/Alhydrogel/500µg CpG 10104"
+
+
 # plot (panel c) ---------------------------------------------------------------
 plot_mcmaster_coef <-
   
   ggplot(
-    df_plot, 
+    df_plot,
     aes(
-      x = rr_plot, 
-      y = Group, 
+      x = rr_plot,
+      y = Group,
       color = Group
-      )
-    ) +
+    )
+  ) +
   
   geom_vline(xintercept = 1, linetype = "solid", alpha = 0.25) +
   
+  # error bars for NON-CpG only
   geom_errorbarh(
+    data = dplyr::filter(df_plot, Group != cpg_label),
     aes(
-      xmin = rr_low_plot, 
+      xmin = rr_low_plot,
       xmax = rr_high_plot
-      ),
-    height = 0.5, 
+    ),
+    height = 0.5,
     size = 0.75
-    ) +
+  ) +
   
+  # points for ALL groups (including CpG)
   geom_point(size = 8) +
-  
-#  geom_text(
-#    aes(
-#      label = sprintf("%.2f", rr_plot)
-#      ),
-#    hjust = -0.2,
-#    vjust = -0.2,
-#    size  = 10,
-#    show.legend = FALSE
-#  ) +
   
   scale_color_manual(values = dose_cols, guide = "none") +
   
@@ -134,7 +124,14 @@ plot_mcmaster_coef <-
     limits = c(0.001, 3)
   ) +
   
-  scale_y_discrete(labels = y_labs) +
+  scale_y_discrete(
+    limits = c(
+      "Na-GST-1/Alhydrogel/500µg CpG 10104",
+      "100µg Na-GST-1/Alhydrogel",
+      "Na-GST-1/Alhydrogel/5µg AP 10-701"
+    ),
+    labels = y_labs
+  ) +
   
   ggtitle("c)") +
   
@@ -148,6 +145,5 @@ plot_mcmaster_coef <-
     axis.text        = element_text(size = 20),
     legend.position  = "none"
   )
-
 
 print(plot_mcmaster_coef)
